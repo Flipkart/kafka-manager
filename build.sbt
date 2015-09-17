@@ -31,6 +31,7 @@ libraryDependencies ++= Seq(
   "org.json4s" %% "json4s-scalaz" % "3.2.11",
   "org.slf4j" % "log4j-over-slf4j" % "1.7.7",
   "com.adrianhurt" %% "play-bootstrap3" % "0.4",
+  "org.apache.kafka" % "kafka_2.11" % "0.8.2.1",
   "org.apache.kafka" %% "kafka" % "0.8.2.1" % "test",
   "org.scalatest" %% "scalatest" % "2.2.1" % "test",
   "org.apache.curator" % "curator-test" % "2.7.1" % "test" force()

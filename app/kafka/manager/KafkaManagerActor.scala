@@ -259,6 +259,11 @@ class KafkaManagerActor(kafkaManagerConfig: KafkaManagerActorConfig)
   private[this] var clusterConfigMap : Map[String,ClusterConfig] = Map.empty
   private[this] var pendingClusterConfigMap : Map[String,ClusterConfig] = Map.empty
 
+  private[this] val tmProps=Props(classOf[TopicMonitorActor])
+  private[this] val topicMonitorActor:ActorPath=context.actorOf(tmProps.withDispatcher(kafkaManagerConfig.pinnedDispatcherName),"topic-monitor").path
+  private[this] val scActor:ActorPath=context.actorOf(Props(classOf[StormClusterManagerActor],curatorConfig,baseZkPath,topicMonitorActor)
+    .withDispatcher(kafkaManagerConfig.pinnedDispatcherName)).path
+
   private[this] def modify(fn: => Any) : Unit = {
     if(longRunningExecutor.getQueue.remainingCapacity() == 0) {
       Future.successful(KMCommandResult(Try(throw new UnsupportedOperationException("Long running executor blocking queue is full!"))))
@@ -361,6 +366,8 @@ class KafkaManagerActor(kafkaManagerConfig: KafkaManagerActorConfig)
           clusterManagerPath:ActorPath =>
             context.actorSelection(clusterManagerPath).forward(request)
         }
+      case request:SCRequest=>
+        context.actorSelection(scActor).forward(request)
         
       case any: Any => log.warning("kma : processQueryRequest : Received unknown message: {}", any)
     }
@@ -478,6 +485,9 @@ class KafkaManagerActor(kafkaManagerConfig: KafkaManagerActorConfig)
         context.children.foreach(context.stop)
         shutdown = true
 
+      case scCommandRequest:SCCommandRequest=>
+        context.actorSelection(scActor)! scCommandRequest
+
       case any: Any => log.warning("kma : processCommandRequest : Received unknown message: {}", any)
     }
   }
@@ -529,7 +539,7 @@ class KafkaManagerActor(kafkaManagerConfig: KafkaManagerActorConfig)
           kafkaManagerConfig.curatorConfig,
           config,
           kafkaManagerConfig.brokerViewUpdatePeriod)
-        val props = Props(classOf[ClusterManagerActor], clusterManagerConfig)
+        val props = Props(classOf[ClusterManagerActor], clusterManagerConfig,topicMonitorActor)
         val newClusterManager = context.actorOf(props, config.name).path
         clusterConfigMap += (config.name -> config)
         clusterManagerMap += (config.name -> newClusterManager)

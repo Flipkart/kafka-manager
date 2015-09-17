@@ -6,20 +6,18 @@
 package kafka.manager
 
 import java.util.Properties
-import java.util.concurrent.{LinkedBlockingQueue, TimeUnit, ThreadPoolExecutor}
+import java.util.concurrent.{LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 
 import akka.actor.{ActorPath, ActorSystem, Props}
 import akka.util.Timeout
-import com.typesafe.config.{ConfigFactory, Config}
-import controllers.Topic
+import com.typesafe.config.{Config, ConfigFactory}
 import kafka.manager.ActorModel._
-import org.slf4j.{LoggerFactory, Logger}
+import org.slf4j.{Logger, LoggerFactory}
 
-import scala.collection.mutable
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import scala.reflect.ClassTag
-import scala.util.{Success, Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
  * @author hiral
@@ -62,23 +60,24 @@ object KafkaManager {
     val defaults: Map[String, _ <: AnyRef] = Map(
       BaseZkPath -> KafkaManagerActor.ZkRoot,
       PinnedDispatchName -> "pinned-dispatcher",
-      BrokerViewUpdateSeconds -> "10",
-      KafkaManagerUpdateSeconds -> "10",
-      DeleteClusterUpdateSeconds -> "10",
+      BrokerViewUpdateSeconds -> "20",
+      KafkaManagerUpdateSeconds -> "20",
+      DeleteClusterUpdateSeconds -> "20",
       DeletionBatchSize -> "2",
       MaxQueueSize -> "100",
-      ThreadPoolSize -> "2",
+      ThreadPoolSize -> "3",
       MutexTimeoutMillis -> "4000",
       StartDelayMillis -> "1000",
-      ApiTimeoutMillis -> "5000"
+      ApiTimeoutMillis -> "10000"
     )
     import scala.collection.JavaConverters._
     ConfigFactory.parseMap(defaults.asJava)
   }
 }
 
-import KafkaManager._
 import akka.pattern._
+import kafka.manager.KafkaManager._
+
 import scalaz.{-\/, \/, \/-}
 class KafkaManager(akkaConfig: Config)
 {
@@ -454,8 +453,8 @@ class KafkaManager(akkaConfig: Config)
           val bm = errOrbm.toOption.getOrElse(Map.empty)
           \/-(
             BrokerListExtended(
-              bl.list, 
-              bm, 
+              bl.list,
+              bm,
               if(bm.isEmpty) None else Option(bm.values.foldLeft(BrokerMetrics.DEFAULT)((acc, m) => acc + m)),
               bl.clusterConfig
             ))
@@ -563,5 +562,27 @@ class KafkaManager(akkaConfig: Config)
       partition(leftE._2) > partition(rightE._2)
     }
     sortedByNumPartition
+  }
+
+  // ----------- Storm Consumers -----------
+
+  def addStormCluster(name: String, clusterName: String, zkHosts: String, zkRoot: String): Unit = {
+    val curatorConfig = new CuratorConfig(zkHosts)
+    tryWithKafkaManagerActor(
+        SCAddCluster(StormClusterConfig(name, clusterName, curatorConfig, zkRoot))
+    )(identity[SCClusterView])
+  }
+
+  def getAllOffsets(clusterName: String): Future[Option[SSGetAllResponse]] = {
+    val future=tryWithKafkaManagerActor(SCGetCluster(clusterName))(identity[SSGetAllResponse])
+    implicit val ec = apiExecutionContext
+    future.map[Option[SSGetAllResponse]]{errOrTd=>
+      errOrTd.fold[Option[SSGetAllResponse]](
+      { err: ApiError =>
+        Option.empty
+      }, {
+        ss=>Option.apply(ss)
+      })
+    }
   }
 }

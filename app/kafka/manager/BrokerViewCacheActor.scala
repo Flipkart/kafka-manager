@@ -20,6 +20,7 @@ import scala.util.Try
  */
 import ActorModel._
 case class BrokerViewCacheActorConfig(kafkaStateActorPath: ActorPath,
+                                      topicMontorActorPath: ActorPath,
                                       clusterConfig: ClusterConfig,
                                       longRunningPoolConfig: LongRunningPoolConfig,
                                       updatePeriod: FiniteDuration = 10 seconds)
@@ -116,6 +117,9 @@ class BrokerViewCacheActor(config: BrokerViewCacheActorConfig) extends LongRunni
         val lastUpdateMillisOption: Option[Long] = topicDescriptionsOption.map(_.lastUpdateMillis)
         context.actorSelection(config.kafkaStateActorPath).tell(KSGetAllTopicDescriptions(lastUpdateMillisOption), self)
         context.actorSelection(config.kafkaStateActorPath).tell(KSGetBrokers, self)
+        if (topicDescriptionsOption.isDefined&&brokerListOption.isDefined)
+          context.actorSelection(config.topicMontorActorPath).tell(TMUpdateRequest(brokerListOption.get,topicIdentities),self)
+
 
       case BVGetViews =>
         sender ! allBrokerViews()

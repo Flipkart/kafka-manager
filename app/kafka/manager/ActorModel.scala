@@ -7,8 +7,8 @@ package kafka.manager
 
 import java.util.Properties
 
-import org.joda.time.DateTime
 import kafka.manager.utils.TopicAndPartition
+import org.joda.time.DateTime
 import org.slf4j.LoggerFactory
 
 import scala.collection.immutable.Queue
@@ -84,8 +84,8 @@ object ActorModel {
                            config: Properties) extends CommandRequest
   case class KCAddTopicPartitions(topic: String,
                            brokers: Seq[Int],
-                           partitions: Int, 
-                           partitionReplicaList: Map[Int, Seq[Int]], 
+                           partitions: Int,
+                           partitionReplicaList: Map[Int, Seq[Int]],
                            readVersion: Int) extends CommandRequest
   case class KCAddMultipleTopicsPartitions(topicsAndReplicas: Seq[(String, Map[Int, Seq[Int]])],
                                            brokers: Seq[Int],
@@ -136,12 +136,66 @@ object ActorModel {
   case object KSGetBrokers extends KSRequest
   case class KSGetBrokerState(id: String) extends  KSRequest
 
+  sealed trait TMRequest extends QueryRequest
+  case class TMUpdateRequest(brokerList: BrokerList, topicIdentities: Map[String, TopicIdentity]) extends TMRequest
+  case class TMGetCountRequest(topic:String) extends QueryRequest
+  case object TMGetAll extends QueryRequest
+
+  sealed trait TMResponse extends QueryResponse
+  case class TMGetAllResponse(topicPartionCountMap:Map[TopicPartition, OffsetCount]) extends TMResponse
+
+  sealed trait SCRequest extends QueryRequest
+  sealed trait SCCommandRequest extends CommandRequest
+  case class SCAddCluster(stormClusterConfig:StormClusterConfig) extends SCCommandRequest
+  case object SCUpdateState extends SCCommandRequest
+  case class SCGetCluster(cluserName:String) extends SCRequest
+
+  sealed trait SCResponse extends QueryResponse
+  case class SCClusterView() extends SCResponse
+
+  sealed trait SSRequest extends QueryRequest
+  case object SSGetAll extends SSRequest
+
+  trait SSResponse extends QueryResponse
+  case class SSGetAllResponse(consumerLatencies: Set[ConsumerLatency]) extends SSResponse
+
+  object SSGetAllResponse{
+
+    import org.json4s._
+    import org.json4s.jackson.JsonMethods._
+    import org.json4s.jackson.Serialization
+    import org.json4s.scalaz.JsonScalaz._
+
+    import scala.language.reflectiveCalls
+
+    implicit val formats = Serialization.formats(FullTypeHints(List(classOf[ClusterConfig])))
+
+
+    implicit def spoutConsumerJSONW: JSONW[ConsumerLatency] = new JSONW[ConsumerLatency] {
+      def write(a: ConsumerLatency) =
+        makeObj(("topic" -> toJSON(a.topic))
+          :: ("consumerOffset" -> toJSON(a.consumerOffset))
+          :: ("producerOffset" -> toJSON(a.producerOffset))
+          :: ("partition" -> toJSON(a.partition))
+          :: ("consumerName" -> toJSON(a.consumerName))
+          :: Nil)
+
+    }
+
+    def serialize(sSGetAllResponse: SSGetAllResponse):String={
+      val json = makeObj(("consumerLatencies" -> toJSON(sSGetAllResponse.consumerLatencies.toList))
+        :: Nil)
+      compact(render(json))
+    }
+
+  }
+
   case class TopicList(list: IndexedSeq[String], deleteSet: Set[String]) extends QueryResponse
   case class TopicConfig(topic: String, config: Option[(Int,String)]) extends QueryResponse
 
   case class TopicDescription(topic: String,
                               description: (Int,String),
-                              partitionState: Option[Map[String, String]], 
+                              partitionState: Option[Map[String, String]],
                               config:Option[(Int,String)],
                               deleteSupported: Boolean) extends  QueryResponse
   case class TopicDescriptions(descriptions: IndexedSeq[TopicDescription], lastUpdateMillis: Long) extends QueryResponse
@@ -156,11 +210,12 @@ object ActorModel {
   case class BrokerIdentity(id: Int, host: String, port: Int, jmxPort: Int)
 
   object BrokerIdentity {
-    import scalaz.syntax.applicative._
     import org.json4s.jackson.JsonMethods._
     import org.json4s.scalaz.JsonScalaz
     import org.json4s.scalaz.JsonScalaz._
+
     import scala.language.reflectiveCalls
+    import scalaz.syntax.applicative._
 
     implicit def from(id: Int, config: String): Validation[NonEmptyList[JsonScalaz.Error],BrokerIdentity]= {
       val json = parse(config)
@@ -173,13 +228,14 @@ object ActorModel {
 
   case class TopicPartitionIdentity(partNum: Int, leader:Int, isr: Seq[Int], replicas: Seq[Int], isPreferredLeader: Boolean = false, isUnderReplicated: Boolean = false)
   object TopicPartitionIdentity {
-    
+
     lazy val logger = LoggerFactory.getLogger(this.getClass)
-    
-    import scalaz.syntax.applicative._
+
     import org.json4s.jackson.JsonMethods._
     import org.json4s.scalaz.JsonScalaz._
+
     import scala.language.reflectiveCalls
+    import scalaz.syntax.applicative._
 
     implicit def from(partition: Int, state:Option[String], replicas: Seq[Int]) : TopicPartitionIdentity = {
       val leaderAndIsr = for {
@@ -212,7 +268,7 @@ object ActorModel {
                            numBrokers: Int,
                            configReadVersion: Int,
                            config: List[(String,String)],
-                           deleteSupported: Boolean, 
+                           deleteSupported: Boolean,
                            clusterConfig: ClusterConfig,
                            metrics: Option[BrokerMetrics] = None) {
 
@@ -259,8 +315,9 @@ object ActorModel {
 
     import org.json4s.jackson.JsonMethods._
     import org.json4s.scalaz.JsonScalaz._
+
     import scala.language.reflectiveCalls
-    
+
     implicit def from(brokers: Int,td: TopicDescription, tm: Option[BrokerMetrics], clusterConfig: ClusterConfig) : TopicIdentity = {
       val descJson = parse(td.description._2)
       //val partMap = (descJson \ "partitions").as[Map[String,Seq[Int]]]
@@ -324,6 +381,11 @@ object ActorModel {
   case class BrokerMessagesPerSecCount(date: DateTime,
                                        count: Long)
 
+  case class PartitionOffsetCount(partition:Int,date:DateTime,count:Long)
+
+  case class TopicPartition(topic:String,partition:Int)
+  case class OffsetCount(date:DateTime,count:Long)
+
   case class BrokerMetrics(bytesInPerSec: MeterMetric,
                            bytesOutPerSec: MeterMetric,
                            bytesRejectedPerSec: MeterMetric,
@@ -354,6 +416,6 @@ object ActorModel {
       MeterMetric(0, 0, 0, 0, 0),
       OSMetric(0D, 0D))
   }
-  
+
   case class BrokerClusterStats(perMessages: BigDecimal, perIncoming: BigDecimal, perOutgoing: BigDecimal)
 }

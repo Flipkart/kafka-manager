@@ -6,23 +6,21 @@
 package kafka.manager
 
 import java.nio.charset.StandardCharsets
-import java.util.concurrent.{LinkedBlockingQueue, TimeUnit, ThreadPoolExecutor}
+import java.util.concurrent.{LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 
-import akka.pattern._
 import akka.actor.{ActorPath, Props}
+import akka.pattern._
 import akka.util.Timeout
+import kafka.manager.utils.{AdminUtils, TopicAndPartition}
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.recipes.cache.PathChildrenCache
 import org.apache.curator.framework.recipes.cache.PathChildrenCache.StartMode
 import org.apache.curator.framework.recipes.locks.InterProcessSemaphoreMutex
 import org.apache.zookeeper.CreateMode
-import kafka.manager.utils.{AdminUtils, TopicAndPartition}
 
-import scala.collection.immutable
+import scala.concurrent.duration.{FiniteDuration, _}
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration.FiniteDuration
 import scala.reflect.ClassTag
-import scala.concurrent.duration._
 import scala.util.{Failure, Try}
 
 /**
@@ -43,8 +41,8 @@ object ClusterManagerActor {
   }
 }
 
-import ActorModel._
-import ClusterManagerActor._
+import kafka.manager.ActorModel._
+import kafka.manager.ClusterManagerActor._
 
 case class ClusterManagerActorConfig(pinnedDispatcherName: String,
                                 baseZkPath : String,
@@ -56,7 +54,7 @@ case class ClusterManagerActorConfig(pinnedDispatcherName: String,
                                 askTimeoutMillis: Long = 2000,
                                 mutexTimeoutMillis: Int = 4000)
 
-class ClusterManagerActor(cmConfig: ClusterManagerActorConfig)
+class ClusterManagerActor(cmConfig: ClusterManagerActorConfig,topicMonitorActor:ActorPath)
   extends BaseQueryCommandActor with CuratorAwareActor with BaseZkPath {
 
   //this is from base zk path trait
@@ -92,7 +90,8 @@ class ClusterManagerActor(cmConfig: ClusterManagerActorConfig)
 
   private[this] val bvConfig = BrokerViewCacheActorConfig(
     kafkaStateActor, 
-    cmConfig.clusterConfig, 
+    topicMonitorActor,
+    cmConfig.clusterConfig,
     LongRunningPoolConfig(Runtime.getRuntime.availableProcessors(), 1000),
     cmConfig.updatePeriod)
   private[this] val bvcProps = Props(classOf[BrokerViewCacheActor],bvConfig)

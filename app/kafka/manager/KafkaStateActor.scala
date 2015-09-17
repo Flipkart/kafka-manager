@@ -208,7 +208,7 @@ class KafkaStateActor(curator: CuratorFramework,
         }.fold {
           sender ! TopicList(IndexedSeq.empty, deleteSet)
         } { data: java.util.Map[String, ChildData] =>
-          sender ! TopicList(data.asScala.map(kv => kv._1).toIndexedSeq, deleteSet)
+          sender ! TopicList(data.asScala.keys.toIndexedSeq, deleteSet)
         }
 
       case KSGetTopicConfig(topic) =>
@@ -218,7 +218,7 @@ class KafkaStateActor(curator: CuratorFramework,
         sender ! getTopicDescription(topic)
 
       case KSGetTopicDescriptions(topics) =>
-        sender ! TopicDescriptions(topics.toIndexedSeq.map(getTopicDescription).flatten, topicsTreeCacheLastUpdateMillis)
+        sender ! TopicDescriptions(topics.toIndexedSeq.flatMap(getTopicDescription), topicsTreeCacheLastUpdateMillis)
 
       case KSGetAllTopicDescriptions(lastUpdateMillisOption) =>
         val lastUpdateMillis = lastUpdateMillisOption.getOrElse(0L)
@@ -229,7 +229,7 @@ class KafkaStateActor(curator: CuratorFramework,
           }.fold {
             sender ! TopicDescriptions(IndexedSeq.empty, topicsTreeCacheLastUpdateMillis)
           } { data: java.util.Map[String, ChildData] =>
-            sender ! TopicDescriptions(data.asScala.keys.toIndexedSeq.map(getTopicDescription).flatten, topicsTreeCacheLastUpdateMillis)
+            sender ! TopicDescriptions(data.asScala.keys.toIndexedSeq.flatMap(getTopicDescription), topicsTreeCacheLastUpdateMillis)
           }
         } // else no updates to send
 
@@ -240,14 +240,12 @@ class KafkaStateActor(curator: CuratorFramework,
         val data: mutable.Buffer[ChildData] = brokersPathCache.getCurrentData.asScala
         val result: IndexedSeq[BrokerIdentity] = data.map { cd =>
           BrokerIdentity.from(nodeFromPath(cd.getPath).toInt, asString(cd.getData))
-        }.filter { v =>
-          v match {
-            case scalaz.Failure(nel) =>
-              log.error(s"Failed to parse broker config $nel")
-              false
-            case _ => true
-          }
-        }.collect { 
+        }.filter {
+          case scalaz.Failure(nel) =>
+            log.error(s"Failed to parse broker config $nel")
+            false
+          case _ => true
+        }.collect {
           case scalaz.Success(bi) => bi
         }.toIndexedSeq.sortBy(_.id)
         sender ! BrokerList(result, clusterConfig)
