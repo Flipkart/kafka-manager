@@ -1,0 +1,32 @@
+@(addStormClusterForm:Form[models.form.AddStormCluster])
+
+@import b3.vertical.fieldConstructor
+
+@theMenu = {
+@views.html.navigation.defaultMenu(views.html.navigation.menuNav("Storm Cluster","Add Storm Cluster",models.navigation.Menus.indexMenu))
+}
+
+@drawForm(form : Form[models.form.AddStormCluster]) = {
+@b3.form(routes.ConsumerMonitor.handleAddStormCluster()) {
+    <fieldset>
+        @b3.text(form("name"), '_label -> "Storm Cluster Name", 'placeholder -> "", 'autofocus -> true )
+        @b3.text(form("cluster"), '_label -> "Associated Cluster", 'placeholder -> "")
+        @b3.text(form("zkHosts"),'_label -> "Zookeeper hosts", 'placeholder -> "localhost:2181")
+        @b3.text(form("zkRoot"),'_label -> "Zookeeper Root ", 'placeholder -> "/nw")
+        @b3.submit('class -> "submit-button btn btn-primary"){ Save }
+        <a href="@routes.Application.index()" class="cancel-button btn btn-default" role="button">Cancel</a>
+    </fieldset>
+}
+}
+
+
+@main("Add Storm Cluster", menu = theMenu, breadcrumbs = views.html.navigation.breadCrumbs(models.navigation.BreadCrumbs.withView("Add Storm Cluster"))) {
+    <div class="col-md-6 un-pad-me">
+        <div class="panel panel-default">
+            <div class="panel-heading"><h3><button type="button" class="btn btn-link" onclick="goBack()"><span class="glyphicon glyphicon-arrow-left" aria-hidden="true"></span></button>Add Storm Cluster</h3></div>
+            <div class="panel-body">
+            @drawForm(addStormClusterForm)
+            </div>
+        </div>
+    </div>
+}

@@ -1,0 +1,56 @@
+@import kafka.manager.ActorModel.SSGetAllResponse
+@(cluster: String, response: SSGetAllResponse)
+
+@main(
+    "Kafka Manager",
+    views.html.navigation.defaultMenu(views.html.navigation.menuNav("Storm Clusters", "List", models.navigation.Menus.indexMenu)),
+    views.html.navigation.breadCrumbs(models.navigation.BreadCrumbs.withView("Storm Clusters"))) {
+    <div class="col-md-12 un-pad-me">
+        <div class="panel panel-default">
+            <div class="panel-heading"><h3>@cluster</h3></div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Topic</th>
+                        <th>Parition</th>
+                        <th>Producer Offset</th>
+                        <th>Consumer Name</th>
+                        <th>Consumer Offset</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @for(latency <- response.consumerLatencies.groupBy(_.topic)) {
+                    <tr>
+                        <td>@latency._1</td>
+                        <td>
+                            <table class="table">
+                                <tbody>
+                                @for(pl <- latency._2.groupBy(_.partition)) {
+                                    <tr>
+                                        <td>@pl._1</td>
+                                        <td>
+                                            <table class="table">
+                                                <tbody>
+                                                    @for(l<-pl._2){
+                                                        <tr>
+                                                            <td>@l.producerOffset</td>
+                                                            <td>@l.consumerName</td>
+                                                            <td>@l.consumerOffset</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+

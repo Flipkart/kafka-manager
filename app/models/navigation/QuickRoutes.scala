@@ -16,7 +16,10 @@ object QuickRoutes {
   val baseRoutes : Map[String, Call] = Map(
     "Clusters" -> controllers.routes.Application.index(),
     "List" -> controllers.routes.Application.index(),
-    "Add Cluster" -> controllers.routes.Cluster.addCluster()
+    "Add Cluster" -> controllers.routes.Cluster.addCluster(),
+    "Add Consumer" -> controllers.routes.ConsumerMonitor.addStormCluster(),
+    "List Storm Cluster"->controllers.routes.ConsumerMonitor.getAllClusters
+
   )
   val clusterRoutes : Map[String, String => Call] = Map(
     "Update Cluster" -> controllers.routes.Cluster.updateCluster,
@@ -29,7 +32,9 @@ object QuickRoutes {
     "Reassign Partitions" -> controllers.routes.ReassignPartitions.reassignPartitions,
     "Logkafkas" -> controllers.routes.Logkafka.logkafkas,
     "List Logkafka" -> controllers.routes.Logkafka.logkafkas,
-    "Create Logkafka" -> controllers.routes.Logkafka.createLogkafka
+    "Create Logkafka" -> controllers.routes.Logkafka.createLogkafka,
+    "List Consumer" -> controllers.routes.ConsumerMonitor.getAllOffsets
+
   )
   val topicRoutes : Map[String, (String, String) => Call] = Map(
     "Topic View" -> controllers.routes.Topic.topic,

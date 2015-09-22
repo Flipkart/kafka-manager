@@ -134,7 +134,7 @@ object Cluster extends Controller {
         formWithErrors => Future.successful(BadRequest(views.html.cluster.addCluster(formWithErrors))),
         clusterConfig => {
           kafkaManager.addCluster(clusterConfig.name, clusterConfig.version.toString, clusterConfig.curatorConfig.zkConnect, clusterConfig.jmxEnabled, clusterConfig.logkafkaEnabled).map { errorOrSuccess =>
-            Ok(views.html.common.resultOfCommand(
+            Ok  (views.html.common.resultOfCommand(
               views.html.navigation.defaultMenu(),
               models.navigation.BreadCrumbs.withView("Add Cluster"),
               errorOrSuccess,

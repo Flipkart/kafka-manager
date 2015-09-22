@@ -11,7 +11,8 @@ import java.util.concurrent.{LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import akka.actor.{ActorPath, Props}
 import akka.pattern._
 import akka.util.Timeout
-import kafka.manager.features.{KMJMXMetricsFeature, KMLogKafkaFeature, ClusterFeatures,AdminUtils, TopicAndPartition}
+import kafka.manager.features.{KMJMXMetricsFeature, KMLogKafkaFeature, ClusterFeatures}
+import kafka.manager.utils.{TopicAndPartition, AdminUtils}
 import org.apache.curator.framework.CuratorFramework
 import org.apache.curator.framework.recipes.cache.PathChildrenCache
 import org.apache.curator.framework.recipes.cache.PathChildrenCache.StartMode
@@ -425,7 +426,7 @@ class ClusterManagerActor(cmConfig: ClusterManagerActorConfig,topicMonitorActor:
           bl <- eventualBrokerList
           tds <- eventualDescriptions
           tis = tds.descriptions.map(TopicIdentity.from(bl, _, None, clusterContext))
-          toElect = tis.map(ti => ti.partitionsIdentity.values.filter(!_.isPreferredLeader).map(tpi => TopicAndPartition(ti.topic, tpi.partNum))).flatten.toSet
+          toElect = tis.flatMap(ti => ti.partitionsIdentity.values.filter(!_.isPreferredLeader).map(tpi => TopicAndPartition(ti.topic, tpi.partNum))).toSet
         } yield toElect
         preferredLeaderElections.map { toElect =>
           withKafkaCommandActor(KCPreferredReplicaLeaderElection(toElect)) { kcResponse: KCCommandResult =>

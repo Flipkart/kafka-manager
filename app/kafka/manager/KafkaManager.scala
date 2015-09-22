@@ -437,7 +437,7 @@ class KafkaManager(akkaConfig: Config)
       result.result.get
     }
   }
-  
+
   def getClusterContext(clusterName: String): Future[ApiError \/ ClusterContext] = {
     tryWithKafkaManagerActor(KMClusterQueryRequest(clusterName, CMGetClusterContext))(
       identity[ClusterContext]
@@ -619,11 +619,27 @@ class KafkaManager(akkaConfig: Config)
 
   // ----------- Storm Consumers -----------
 
-  def addStormCluster(name: String, clusterName: String, zkHosts: String, zkRoot: String): Unit = {
+  def addStormCluster(name: String, clusterName: String, zkHosts: String, zkRoot: String):  Future[ApiError \/
+    Unit] = {
     val curatorConfig = new CuratorConfig(zkHosts)
     tryWithKafkaManagerActor(
         SCAddCluster(StormClusterConfig(name, clusterName, curatorConfig, zkRoot))
-    )(identity[SCClusterView])
+    ){
+      result: SCCommandResponse =>
+        result.result.get
+    }
+  }
+
+  def getAllConsumers: Future[Option[SCGetAllClustersResponse]] = {
+    implicit val ec = apiExecutionContext
+    tryWithKafkaManagerActor(SCGetAllClusters)(identity[SCGetAllClustersResponse]).map({ errOrTd =>
+      errOrTd.fold[Option[SCGetAllClustersResponse]](
+      { err: ApiError =>
+        Option.empty
+      }, {
+        ss => Option.apply(ss)
+      })
+    })
   }
 
   def getAllOffsets(clusterName: String): Future[Option[SSGetAllResponse]] = {

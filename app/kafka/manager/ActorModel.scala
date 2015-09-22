@@ -82,8 +82,8 @@ object ActorModel {
                               log_path: String,
                               config: Properties = new Properties
                               ) extends CommandRequest
-  case class CMUpdateLogkafkaConfig(hostname: String, 
-                                    log_path: String, 
+  case class CMUpdateLogkafkaConfig(hostname: String,
+                                    log_path: String,
                                     config: Properties) extends CommandRequest
   case class CMDeleteLogkafka(hostname: String, log_path: String) extends CommandRequest
   //##########
@@ -163,9 +163,11 @@ object ActorModel {
   case class SCAddCluster(stormClusterConfig:StormClusterConfig) extends SCCommandRequest
   case object SCUpdateState extends SCCommandRequest
   case class SCGetCluster(cluserName:String) extends SCRequest
-
+  case object SCGetAllClusters extends SCRequest
+  case class SCCommandResponse(result: Try[Unit]) extends QueryResponse
   sealed trait SCResponse extends QueryResponse
   case class SCClusterView() extends SCResponse
+  case class SCGetAllClustersResponse(clusters:List[String])
 
   sealed trait SSRequest extends QueryRequest
   case object SSGetAll extends SSRequest
@@ -173,6 +175,25 @@ object ActorModel {
   trait SSResponse extends QueryResponse
   case class SSGetAllResponse(consumerLatencies: Set[ConsumerLatency]) extends SSResponse
 
+  object SCGetAllClustersResponse {
+
+    import org.json4s._
+    import org.json4s.jackson.JsonMethods._
+    import org.json4s.jackson.Serialization
+    import org.json4s.scalaz.JsonScalaz._
+
+    import scala.language.reflectiveCalls
+
+    implicit val formats = Serialization.formats(FullTypeHints(List(classOf[ClusterConfig])))
+
+    def serialize(sCGetAllClustersResponse: SCGetAllClustersResponse): String = {
+      val json = makeObj(("clusters" -> toJSON(sCGetAllClustersResponse.clusters))
+        :: Nil)
+      compact(render(json))
+    }
+
+
+  }
   object SSGetAllResponse{
 
     import org.json4s._
@@ -209,19 +230,19 @@ object ActorModel {
 
   case class TopicDescription(topic: String,
                               description: (Int,String),
-                              partitionState: Option[Map[String, String]], 
+                              partitionState: Option[Map[String, String]],
                               config:Option[(Int,String)]) extends  QueryResponse
   case class TopicDescriptions(descriptions: IndexedSeq[TopicDescription], lastUpdateMillis: Long) extends QueryResponse
 
   case class BrokerList(list: IndexedSeq[BrokerIdentity], clusterContext: ClusterContext) extends QueryResponse
 
-  case class PreferredReplicaElection(startTime: DateTime, 
-                                      topicAndPartition: Set[TopicAndPartition], 
-                                      endTime: Option[DateTime], 
+  case class PreferredReplicaElection(startTime: DateTime,
+                                      topicAndPartition: Set[TopicAndPartition],
+                                      endTime: Option[DateTime],
                                       clusterContext: ClusterContext) extends QueryResponse
-  case class ReassignPartitions(startTime: DateTime, 
-                                partitionsToBeReassigned: Map[TopicAndPartition, Seq[Int]], 
-                                endTime: Option[DateTime], 
+  case class ReassignPartitions(startTime: DateTime,
+                                partitionsToBeReassigned: Map[TopicAndPartition, Seq[Int]],
+                                endTime: Option[DateTime],
                                 clusterContext: ClusterContext) extends QueryResponse
 
   case object DCUpdateState extends CommandRequest
@@ -335,7 +356,7 @@ object ActorModel {
     import org.json4s.scalaz.JsonScalaz._
 
     import scala.language.reflectiveCalls
-    
+
     implicit def from(brokers: Int,td: TopicDescription, tm: Option[BrokerMetrics], clusterContext: ClusterContext) : TopicIdentity = {
       val descJson = parse(td.description._2)
       //val partMap = (descJson \ "partitions").as[Map[String,Seq[Int]]]
@@ -436,7 +457,7 @@ object ActorModel {
   }
 
   case class BrokerClusterStats(perMessages: BigDecimal, perIncoming: BigDecimal, perOutgoing: BigDecimal)
-  
+
   sealed trait LKVRequest extends QueryRequest
 
   case object LKVForceUpdate extends CommandRequest

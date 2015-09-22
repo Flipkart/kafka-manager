@@ -14,7 +14,7 @@ import scala.collection.JavaConverters._
 /**
  * Created by vinay.varma on 9/14/15.
  */
-class StormClusterManagerActor(val cConfig: CuratorConfig, val bZkPath: String,topicMonitorActor:ActorPath) extends BaseQueryCommandActor with CuratorAwareActor with BaseZkPath {
+class StormClusterManagerActor(val cConfig: CuratorConfig, val bZkPath: String, topicMonitorActor: ActorPath) extends BaseQueryCommandActor with CuratorAwareActor with BaseZkPath {
 
   private[this] val consumerZkPath = zkPath("consumers")
   private[this] val consumersPathCache = new PathChildrenCache(curator, consumerZkPath, true)
@@ -63,8 +63,10 @@ class StormClusterManagerActor(val cConfig: CuratorConfig, val bZkPath: String,t
           sender ! ActorErrorResponse(s"Unknown cluster : ${request.cluserName}")
         } {
           ssPath: ActorPath =>
-            context.actorSelection(ssPath).forward(request  )
+            context.actorSelection(ssPath).forward(request)
         }
+      case SCGetAllClusters =>
+        sender() ! SCGetAllClustersResponse(spoutStateMap.keySet.toList)
       case _ =>
         println("scma unknown query request")
     }
@@ -76,9 +78,14 @@ class StormClusterManagerActor(val cConfig: CuratorConfig, val bZkPath: String,t
       case SCAddCluster(stormClusterConfig) =>
         val data = StormClusterConfig.serialize(stormClusterConfig)
         val zkPath = zkPathFrom(consumerZkPath, stormClusterConfig.clusterName)
-        require(consumersPathCache.getCurrentData(zkPath) == null,
-          s"Cluster already exists : ${stormClusterConfig.clusterName}")
-        curator.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(zkPath, data)
+        sender() ! SCCommandResponse(
+          Try {
+            require(consumersPathCache.getCurrentData(zkPath) == null,
+              s"Cluster already exists : ${stormClusterConfig.clusterName}")
+            curator.create().creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT).forPath(zkPath, data)
+          }
+        )
+
       case SCUpdateState =>
         updateState()
       case _ =>
@@ -111,10 +118,10 @@ class StormClusterManagerActor(val cConfig: CuratorConfig, val bZkPath: String,t
   private[this] def addCluster(config: StormClusterConfig): Try[Boolean] = {
     Try {
       val spoutStateConfig = SpoutStateConfig(config.name, config.curatorConfig, config.stormZkRootNode)
-      val props = Props(classOf[SpoutStateActor], spoutStateConfig,topicMonitorActor)
+      val props = Props(classOf[SpoutStateActor], spoutStateConfig, topicMonitorActor)
       val newSpoutStateActor = context.actorOf(props.withDispatcher("pinned-dispatcher"), config.name).path
-      spoutStateConfigMap += (config.clusterName-> spoutStateConfig)
-      spoutStateMap += (config.clusterName-> newSpoutStateActor)
+      spoutStateConfigMap += (config.clusterName -> spoutStateConfig)
+      spoutStateMap += (config.clusterName -> newSpoutStateActor)
       true
     }
   }

@@ -77,10 +77,12 @@ object Menus {
   }
   
   val indexMenu = {
-    val defaultItems = IndexedSeq("List".baseRouteMenuItem)
+    val defaultItems = IndexedSeq("List".baseRouteMenuItem,"List Storm Cluster".baseRouteMenuItem,"Add Consumer".baseRouteMenuItem)
     val items = {
-      if(ApplicationFeatures.features.features(KMClusterManagerFeature))
+      if(ApplicationFeatures.features.features(KMClusterManagerFeature))  {
         defaultItems.+:("Add Cluster".baseRouteMenuItem)
+
+      }
       else
         defaultItems
     }
